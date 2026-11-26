@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ExerciseTimer Cast Receiver</title>
+  <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+  <style>
+    :root {
+      --accent: #10B981;
+      --bg-base: #0F1115;
+      --surface: rgba(26, 29, 36, 0.88);
+      --border: rgba(255, 255, 255, 0.14);
+      --text-primary: #F8FAFC;
+      --text-muted: #94A3B8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    html, body {
+      width: 100vw; height: 100vh; overflow: hidden;
+      background: var(--bg-base); color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      transition: background-color 0.45s ease;
+    }
+    .tv-root {
+      width: 100%; height: 100%; display: flex; flex-direction: column;
+      justify-content: space-between; padding: 2.6vh 3.6vw; position: relative;
+    }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 2vw; z-index: 2; }
+    .brand-row { display: flex; align-items: center; gap: 1.2vw; min-width: 0; }
+    .live-pill {
+      display: inline-flex; align-items: center; gap: 0.55vw;
+      padding: 0.7vh 1.2vw; border-radius: 999px;
+      font-size: clamp(13px, 1.35vw, 24px); font-weight: 800; letter-spacing: 0.08em;
+      background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.45);
+      color: #34D399; white-space: nowrap;
+    }
+    .live-pill.paused {
+      background: rgba(244, 63, 94, 0.25); border-color: rgba(244, 63, 94, 0.55); color: #FDA4AF;
+    }
+    .live-dot {
+      width: 0.7vw; height: 0.7vw; min-width: 9px; min-height: 9px;
+      border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor;
+    }
+    .routine-title {
+      font-size: clamp(20px, 2.2vw, 42px); font-weight: 800; color: var(--text-primary);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .state-screen { display: none; flex: 1; width: 100%; min-height: 0; }
+    .state-screen.visible { display: flex; }
+    .center-card {
+      margin: auto; max-width: 72vw; text-align: center; padding: 5vh 4vw;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 28px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    }
+    .center-icon { font-size: clamp(54px, 6.5vw, 120px); margin-bottom: 2vh; }
+    .center-title { font-size: clamp(28px, 3.6vw, 68px); font-weight: 900; margin-bottom: 1.5vh; }
+    .center-sub { font-size: clamp(18px, 1.9vw, 34px); color: var(--text-muted); line-height: 1.45; }
+    #screen-active { align-items: center; justify-content: center; gap: 4.2vw; padding: 1.5vh 0; }
+    .ring-column { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+    .ring-wrapper {
+      position: relative; width: min(64vh, 38vw); height: min(64vh, 38vw);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .media-circle {
+      position: absolute; inset: 6.2%; border-radius: 50%; overflow: hidden;
+      background: rgba(15, 23, 42, 0.65); display: none; align-items: center; justify-content: center;
+    }
+    .media-circle.has-media { display: flex; }
+    .media-circle img, .media-circle canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; transition: opacity 0.15s ease;
+    }
+    .media-scrim {
+      position: absolute; inset: 0;
+      background: radial-gradient(circle, rgba(0,0,0,0.08) 45%, rgba(0,0,0,0.42) 100%);
+      pointer-events: none;
+    }
+    .ring-svg {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      transform: rotate(-90deg); filter: drop-shadow(0 0 18px rgba(0, 0, 0, 0.45));
+    }
+    .ring-track { fill: none; stroke: rgba(255, 255, 255, 0.14); stroke-width: 12; }
+    .ring-progress {
+      fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round;
+      transition: stroke 0.3s ease;
+    }
+    .ring-center-fallback { position: relative; z-index: 2; text-align: center; padding: 0 10%; }
+    .ring-center-icon { font-size: clamp(48px, 6vw, 110px); opacity: 0.9; }
+    .info-column {
+      flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column;
+      justify-content: center; gap: 2.2vh;
+    }
+    .phase-badge {
+      align-self: flex-start; padding: 1vh 2vw; border-radius: 16px;
+      font-size: clamp(18px, 2vw, 38px); font-weight: 900; letter-spacing: 0.1em;
+      text-transform: uppercase; background: rgba(16, 185, 129, 0.2);
+      color: var(--accent); border: 2px solid var(--accent);
+    }
+    .exercise-name {
+      font-size: clamp(32px, 4.2vw, 82px); font-weight: 900; line-height: 1.08;
+      color: var(--text-primary); text-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .giant-clock {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: clamp(74px, 11.8vw, 228px); font-weight: 900; line-height: 0.96;
+      letter-spacing: -0.03em; color: #FFFFFF; text-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+    }
+    .next-banner {
+      font-size: clamp(20px, 2.2vw, 42px); font-weight: 800; color: #FBBF24;
+      min-height: 1.3em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .metrics-grid {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.4vw; margin-top: 0.8vh;
+    }
+    .metrics-grid.with-cycle { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .metric-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 1.6vh 1.4vw; text-align: center;
+    }
+    .metric-label {
+      font-size: clamp(11px, 1.1vw, 20px); font-weight: 800; color: var(--text-muted);
+      letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.5vh;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .metric-val { font-size: clamp(22px, 2.5vw, 48px); font-weight: 900; color: var(--text-primary); white-space: nowrap; }
+    .metric-val.cyan { color: #22D3EE; }
+    .metric-val.green { color: #34D399; }
+    .metric-val.amber { color: #FBBF24; }
+  </style>
+</head>
+<body>
+  <div class="tv-root">
+    <div class="topbar">
+      <div class="brand-row">
+        <div class="live-pill" id="live-pill">
+          <span class="live-dot"></span>
+          <span id="live-pill-text">LIVE</span>
+        </div>
+        <div class="routine-title" id="routine-title">ExerciseTimer</div>
+      </div>
+    </div>
+
+    <div class="state-screen visible" id="screen-idle">
+      <div class="center-card">
+        <div class="center-icon">⏱️</div>
+        <div class="center-title" id="idle-title">Pantalla TV Lista</div>
+        <div class="center-sub" id="idle-sub">Inicia una rutina en tu celular para ver el cronómetro en vivo aquí.</div>
+      </div>
+    </div>
+
+    <div class="state-screen" id="screen-active">
+      <div class="ring-column">
+        <div class="ring-wrapper">
+          <div class="media-circle" id="media-circle">
+            <img id="ex-gif" alt="" crossorigin="anonymous" />
+            <canvas id="ex-freeze"></canvas>
+            <div class="media-scrim"></div>
+          </div>
+          <div class="ring-center-fallback" id="ring-fallback">
+            <div class="ring-center-icon" id="ring-phase-icon">💪</div>
+          </div>
+          <svg class="ring-svg" viewBox="0 0 240 240">
+            <circle class="ring-track" cx="120" cy="120" r="108"></circle>
+            <circle class="ring-progress" id="ring-progress" cx="120" cy="120" r="108"
+                    stroke-dasharray="678.584" stroke-dashoffset="0"></circle>
+          </svg>
+        </div>
+      </div>
+
+      <div class="info-column">
+        <div class="phase-badge" id="phase-badge">PREP</div>
+        <div class="exercise-name" id="exercise-name"></div>
+        <div class="giant-clock" id="giant-clock">00:00</div>
+        <div class="next-banner" id="next-banner"></div>
+        <div class="metrics-grid" id="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label" id="lbl-ex">EJERCICIO</div>
+            <div class="metric-val" id="val-ex">1 / 1</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label" id="lbl-round">RONDA</div>
+            <div class="metric-val cyan" id="val-round">1 / 1</div>
+          </div>
+          <div class="metric-card" id="card-cycle" style="display:none;">
+            <div class="metric-label" id="lbl-cycle">CICLO</div>
+            <div class="metric-val amber" id="val-cycle">1 / 1</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label" id="lbl-rem">RESTANTE</div>
+            <div class="metric-val green" id="val-rem">00:00</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="state-screen" id="screen-completed">
+      <div class="center-card">
+        <div class="center-icon">🏆</div>
+        <div class="center-title" id="completed-title">¡ENTRENAMIENTO COMPLETADO!</div>
+        <div class="center-sub" id="completed-sub"></div>
+      </div>
+    </div>
+
+    <div class="state-screen" id="screen-disconnected">
+      <div class="center-card">
+        <div class="center-icon">📺</div>
+        <div class="center-title" id="disc-title">Transmisión finalizada</div>
+        <div class="center-sub" id="disc-sub">La sesión se desconectó desde el celular.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const CAST_NAMESPACE = 'urn:x-cast:com.example.exercisetimer';
+      const CIRCUMFERENCE = 2 * Math.PI * 108;
+      let latestSeq = -1;
+      let animStatus = 'IDLE';
+      let animStartPerf = 0;
+      let baseRemainingMs = 0;
+      let durationMs = 1000;
+      let currentMediaSrc = '';
+      let shouldAnimateGif = false;
+      let gifLoadedOk = false;
+
+      const elBody = document.body;
+      const elLivePill = document.getElementById('live-pill');
+      const elLiveText = document.getElementById('live-pill-text');
+      const elRoutineTitle = document.getElementById('routine-title');
+      const scIdle = document.getElementById('screen-idle');
+      const scActive = document.getElementById('screen-active');
+      const scCompleted = document.getElementById('screen-completed');
+      const scDisconnected = document.getElementById('screen-disconnected');
+      const elMediaCircle = document.getElementById('media-circle');
+      const elGif = document.getElementById('ex-gif');
+      const elFreeze = document.getElementById('ex-freeze');
+      const elFallback = document.getElementById('ring-fallback');
+      const elPhaseIcon = document.getElementById('ring-phase-icon');
+      const elRingProgress = document.getElementById('ring-progress');
+      const elPhaseBadge = document.getElementById('phase-badge');
+      const elExName = document.getElementById('exercise-name');
+      const elClock = document.getElementById('giant-clock');
+      const elNext = document.getElementById('next-banner');
+      const elMetricsGrid = document.getElementById('metrics-grid');
+      const elCardCycle = document.getElementById('card-cycle');
+
+      function showScreen(target) {
+        [scIdle, scActive, scCompleted, scDisconnected].forEach(function(s) {
+          if (s === target) s.classList.add('visible');
+          else s.classList.remove('visible');
+        });
+      }
+
+      function hexToRgba(hex, alpha) {
+        const clean = (hex || '#10B981').replace('#', '').trim();
+        if (clean.length !== 6) return 'rgba(16,185,129,' + alpha + ')';
+        return 'rgba(' + parseInt(clean.substring(0,2),16) + ',' +
+          parseInt(clean.substring(2,4),16) + ',' + parseInt(clean.substring(4,6),16) + ',' + alpha + ')';
+      }
+
+      function mixBackground(baseHex, tintHex, tintWeight) {
+        const bClean = (baseHex || '#0F1115').replace('#', '').trim();
+        const tClean = (tintHex || '#10B981').replace('#', '').trim();
+        if (bClean.length !== 6 || tClean.length !== 6) return baseHex || '#0F1115';
+        const r = Math.round(parseInt(bClean.substring(0,2),16)*(1-tintWeight) + parseInt(tClean.substring(0,2),16)*tintWeight);
+        const g = Math.round(parseInt(bClean.substring(2,4),16)*(1-tintWeight) + parseInt(tClean.substring(2,4),16)*tintWeight);
+        const b = Math.round(parseInt(bClean.substring(4,6),16)*(1-tintWeight) + parseInt(tClean.substring(4,6),16)*tintWeight);
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+      }
+
+      function formatMillis(ms) {
+        const totalSec = Math.max(0, Math.ceil(ms / 1000));
+        const hrs = Math.floor(totalSec / 3600);
+        const mins = Math.floor((totalSec % 3600) / 60);
+        const secs = totalSec % 60;
+        const mm = mins < 10 ? '0' + mins : '' + mins;
+        const ss = secs < 10 ? '0' + secs : '' + secs;
+        return hrs > 0 ? ((hrs < 10 ? '0' + hrs : '' + hrs) + ':' + mm + ':' + ss) : (mm + ':' + ss);
+      }
+
+      function drawFirstFrameToCanvas() {
+        if (!gifLoadedOk || !elGif.naturalWidth || !elGif.naturalHeight) return;
+        const size = 360;
+        elFreeze.width = size; elFreeze.height = size;
+        const ctx = elFreeze.getContext('2d');
+        if (!ctx) return;
+        const scale = Math.max(size / elGif.naturalWidth, size / elGif.naturalHeight);
+        const dw = elGif.naturalWidth * scale;
+        const dh = elGif.naturalHeight * scale;
+        ctx.clearRect(0, 0, size, size);
+        try { ctx.drawImage(elGif, (size - dw) / 2, (size - dh) / 2, dw, dh); } catch (e) {}
+      }
+
+      function syncMediaVisibility() {
+        if (!currentMediaSrc || !gifLoadedOk) {
+          elMediaCircle.classList.remove('has-media');
+          elFallback.style.display = 'block';
+          return;
+        }
+        elMediaCircle.classList.add('has-media');
+        elFallback.style.display = 'none';
+        elGif.style.opacity = shouldAnimateGif ? '1' : '0';
+        elFreeze.style.opacity = shouldAnimateGif ? '0' : '1';
+      }
+
+      elGif.onload = function() { gifLoadedOk = true; drawFirstFrameToCanvas(); syncMediaVisibility(); };
+      elGif.onerror = function() { gifLoadedOk = false; syncMediaVisibility(); };
+
+      function updateMediaSource(src, animate) {
+        shouldAnimateGif = !!animate;
+        const nextSrc = src || '';
+        if (nextSrc !== currentMediaSrc) {
+          currentMediaSrc = nextSrc;
+          gifLoadedOk = false;
+          if (nextSrc) elGif.src = nextSrc;
+          else { elGif.removeAttribute('src'); syncMediaVisibility(); }
+        } else {
+          syncMediaVisibility();
+        }
+      }
+
+      function setRingProgress(progress) {
+        const clamped = Math.max(0, Math.min(1, progress));
+        elRingProgress.style.strokeDashoffset = (CIRCUMFERENCE * (1 - clamped)).toFixed(2);
+      }
+
+      function applyPayload(p) {
+        if (!p) return;
+        if (typeof p.seq === 'number' && p.seq < latestSeq && p.type !== 'SESSION_ENDED') return;
+        if (typeof p.seq === 'number') latestSeq = p.seq;
+
+        if (p.type === 'SESSION_ENDED') {
+          animStatus = 'DISCONNECTED';
+          document.getElementById('disc-title').textContent = p.disconnectedTitle || 'Transmisión finalizada';
+          document.getElementById('disc-sub').textContent = p.disconnectedSubtitle || '';
+          elLivePill.classList.add('paused');
+          elLiveText.textContent = 'OFF';
+          elBody.style.backgroundColor = '#0F1115';
+          showScreen(scDisconnected);
+          return;
+        }
+
+        const accent = p.accentColorHex || '#10B981';
+        const baseBg = p.backgroundColorHex || '#0F1115';
+        document.documentElement.style.setProperty('--accent', accent);
+        document.documentElement.style.setProperty('--bg-base', baseBg);
+        elRoutineTitle.textContent = p.routineName || p.appTitle || 'ExerciseTimer';
+
+        animStatus = p.status || 'IDLE';
+        if (animStatus === 'PAUSED') {
+          elLivePill.classList.add('paused');
+          elLiveText.textContent = p.pausedBadgeLabel || 'PAUSED';
+        } else {
+          elLivePill.classList.remove('paused');
+          elLiveText.textContent = p.liveBadgeLabel || 'LIVE';
+        }
+
+        if (animStatus === 'IDLE') {
+          document.getElementById('idle-title').textContent = p.idleTitle || '';
+          document.getElementById('idle-sub').textContent = p.idleSubtitle || '';
+          elBody.style.backgroundColor = baseBg;
+          updateMediaSource('', false);
+          showScreen(scIdle);
+          return;
+        }
+
+        if (animStatus === 'COMPLETED') {
+          document.getElementById('completed-title').textContent = p.completedTitle || '';
+          document.getElementById('completed-sub').textContent = p.completedSubtitle || '';
+          elBody.style.backgroundColor = mixBackground(baseBg, accent, p.fullScreenFill ? 0.42 : 0.18);
+          updateMediaSource('', false);
+          showScreen(scCompleted);
+          return;
+        }
+
+        showScreen(scActive);
+        elBody.style.backgroundColor = animStatus === 'PAUSED'
+          ? '#5B0B18'
+          : mixBackground(baseBg, accent, p.fullScreenFill ? 0.38 : 0.16);
+
+        elPhaseBadge.textContent = p.phaseLabel || '';
+        elPhaseBadge.style.color = accent;
+        elPhaseBadge.style.borderColor = accent;
+        elPhaseBadge.style.backgroundColor = hexToRgba(accent, 0.2);
+
+        elExName.textContent = p.exerciseName || p.routineName || '';
+        elExName.style.display = (p.exerciseName && p.exerciseName.trim().length > 0) ? '-webkit-box' : 'none';
+        elNext.textContent = p.nextExerciseText || '';
+
+        document.getElementById('lbl-ex').textContent = p.metricExerciseLabel || 'EXERCISE';
+        document.getElementById('val-ex').textContent = p.exerciseCounter || '1 / 1';
+        document.getElementById('lbl-round').textContent = p.metricRoundLabel || 'ROUND';
+        document.getElementById('val-round').textContent = p.roundCounter || '1 / 1';
+        document.getElementById('lbl-rem').textContent = p.metricRemainingLabel || 'REMAINING';
+        document.getElementById('val-rem').textContent = p.totalRemainingText || '00:00';
+
+        if (p.cycleCounter && p.cycleCounter.length > 0) {
+          elCardCycle.style.display = 'block';
+          elMetricsGrid.classList.add('with-cycle');
+          document.getElementById('lbl-cycle').textContent = p.metricCycleLabel || 'CYCLE';
+          document.getElementById('val-cycle').textContent = p.cycleCounter;
+        } else {
+          elCardCycle.style.display = 'none';
+          elMetricsGrid.classList.remove('with-cycle');
+        }
+
+        elPhaseIcon.textContent = p.phase === 'WORK' ? '🔥' : (p.phase === 'PREPARE' ? '⚡' : '😮‍💨');
+        updateMediaSource(p.mediaUrlCast || p.mediaUrlWifi, p.animateMedia);
+
+        baseRemainingMs = Math.max(0, p.remainingMillis || 0);
+        durationMs = Math.max(1, p.durationMillis || 1000);
+        animStartPerf = performance.now();
+        elClock.textContent = p.formattedRemaining || formatMillis(baseRemainingMs);
+        setRingProgress(baseRemainingMs / durationMs);
+      }
+
+      function animationTick(now) {
+        if (animStatus === 'RUNNING') {
+          const currentLeft = Math.max(0, baseRemainingMs - Math.max(0, now - animStartPerf));
+          setRingProgress(currentLeft / durationMs);
+          elClock.textContent = formatMillis(currentLeft);
+        }
+        requestAnimationFrame(animationTick);
+      }
+
+      try {
+        const context = cast.framework.CastReceiverContext.getInstance();
+        context.addCustomMessageListener(CAST_NAMESPACE, function(customEvent) {
+          try {
+            const data = typeof customEvent.data === 'string' ? JSON.parse(customEvent.data) : customEvent.data;
+            applyPayload(data);
+            if (data && data.type === 'SESSION_ENDED') {
+              setTimeout(function() { try { context.stop(); } catch (e) {} }, 700);
+            }
+          } catch (err) {}
+        });
+        const options = new cast.framework.CastReceiverOptions();
+        options.disableIdleTimeout = true;
+        options.customNamespaces = {};
+        options.customNamespaces[CAST_NAMESPACE] = cast.framework.system.MessageType.JSON;
+        context.start(options);
+      } catch (e) {}
+
+      requestAnimationFrame(animationTick);
+    })();
+  </script>
+</body>
+</html>
