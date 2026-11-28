@@ -83,8 +83,8 @@
     }
     .ring-wrapper {
       position: relative;
-      width: min(76vh, 46vw);
-      height: min(76vh, 46vw);
+      width: min(82vh, 50vw);
+      height: min(82vh, 50vw);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -143,12 +143,13 @@
     }
     .giant-clock {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      font-size: clamp(54px, 8.2vw, 154px); font-weight: 900; line-height: 1;
+      font-size: clamp(96px, 16vw, 310px); font-weight: 900; line-height: 0.96;
       letter-spacing: -0.03em; color: #FFFFFF;
-      text-shadow: 0 6px 26px rgba(0, 0, 0, 0.85), 0 0 12px rgba(0, 0, 0, 0.7);
+      text-shadow: 0 8px 30px rgba(0, 0, 0, 0.9), 0 0 16px rgba(0, 0, 0, 0.75);
       white-space: nowrap;
     }
-    .giant-clock.has-hours { font-size: clamp(38px, 5.4vw, 102px); }
+    .giant-clock.has-mins { font-size: clamp(68px, 10.8vw, 206px); }
+    .giant-clock.has-hours { font-size: clamp(44px, 6.8vw, 128px); }
     .next-banner {
       font-size: clamp(18px, 2vw, 38px); font-weight: 800; color: #FBBF24;
       min-height: 1.3em; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -332,19 +333,22 @@
       }
 
       function formatMillis(ms) {
-        const totalSec = Math.max(0, Math.ceil(ms / 1000));
+        const totalSec = Math.max(0, Math.floor(ms / 1000));
         const hrs = Math.floor(totalSec / 3600);
         const mins = Math.floor((totalSec % 3600) / 60);
         const secs = totalSec % 60;
         const mm = mins < 10 ? '0' + mins : '' + mins;
         const ss = secs < 10 ? '0' + secs : '' + secs;
-        return hrs > 0 ? ((hrs < 10 ? '0' + hrs : '' + hrs) + ':' + mm + ':' + ss) : (mm + ':' + ss);
+        if (hrs > 0) return (hrs < 10 ? '0' + hrs : '' + hrs) + ':' + mm + ':' + ss;
+        if (mins > 0) return mm + ':' + ss;
+        return ss;
       }
 
       function setClockText(txt) {
         elClock.textContent = txt;
+        elClock.classList.remove('has-mins', 'has-hours');
         if (txt && txt.length > 5) elClock.classList.add('has-hours');
-        else elClock.classList.remove('has-hours');
+        else if (txt && txt.length > 2) elClock.classList.add('has-mins');
       }
 
       function ensureAudioContext() {
@@ -583,13 +587,13 @@
 
         showScreen(scActive);
         if (animStatus === 'PAUSED') {
-          elBody.style.backgroundColor = '#4A0415';
+          elBody.style.backgroundColor = '#7A0D1E';
           document.documentElement.style.setProperty('--text-primary', '#F8FAFC');
           document.documentElement.style.setProperty('--text-muted', '#CBD5E1');
         } else {
           elBody.style.backgroundColor = p.fullScreenFill
-            ? mixBackground(baseBg, accent, 0.38)
-            : mixBackground(baseBg, accent, 0.08);
+            ? mixBackground(baseBg, accent, 0.40)
+            : mixBackground(baseBg, accent, 0.15);
           const lightMain = !p.fullScreenFill && isLightHex(baseBg);
           document.documentElement.style.setProperty('--text-primary', lightMain ? '#0F172A' : '#F8FAFC');
           document.documentElement.style.setProperty('--text-muted', lightMain ? '#475569' : '#94A3B8');
