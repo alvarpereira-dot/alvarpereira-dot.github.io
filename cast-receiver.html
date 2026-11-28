@@ -386,12 +386,41 @@
         } catch (e) {}
       }
 
+      function playPcm8Base64(b64, sampleRate) {
+        if (!b64) return false;
+        const ctx = ensureAudioContext();
+        if (!ctx || typeof ctx.createBuffer !== 'function') return false;
+        try {
+          const bin = atob(b64);
+          const len = bin.length;
+          if (len <= 0) return false;
+          const sr = sampleRate || 8000;
+          const buffer = ctx.createBuffer(1, len, sr);
+          const ch = buffer.getChannelData(0);
+          for (let i = 0; i < len; i++) {
+            ch[i] = (bin.charCodeAt(i) - 128) / 128.0;
+          }
+          stopActiveVoice();
+          const src = ctx.createBufferSource();
+          src.buffer = buffer;
+          src.connect(ctx.destination);
+          activeAudioSource = src;
+          src.start(0);
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+
       function handleAudioCue(p) {
         if (!p) return;
         if (typeof p.seq === 'number' && p.seq <= lastAudioCueSeq) return;
         if (typeof p.seq === 'number') lastAudioCueSeq = p.seq;
         hasReceivedAudioCue = true;
 
+        if (p.pcm8Base64 && playPcm8Base64(p.pcm8Base64, p.sampleRate)) {
+          return;
+        }
         if (p.audioBase64) {
           const dataUri = 'data:audio/wav;base64,' + p.audioBase64;
           const ctx = ensureAudioContext();
